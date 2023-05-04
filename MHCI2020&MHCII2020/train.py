@@ -70,9 +70,9 @@ if args.mode == 'HLA_II':
         loss_fn = nn.CrossEntropyLoss(reduction='sum')
         model = hla_ii_mult_cnn(args).to(device)
         optimizer = torch.optim.AdamW(params=model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-        save_path = 'result/HLA_II/models/best_model' + '_CV' + str(cv) + '.pt'  # 当前目录下
-        if not os.path.exists('result/HLA_II/models'):
-            os.makedirs('result/HLA_II/models')
+        save_path = 'result/HLA_II/best_model' + '_CV' + str(cv) + '.pt'  # 当前目录下
+        if not os.path.exists('result/HLA_II'):
+            os.makedirs('result/HLA_II')
         best_auroc = 0.5
         best_auc_epoch = 1
         best_R = 0.5
@@ -144,7 +144,7 @@ if args.mode == 'HLA_II':
         #
         #     torch.save(model.state_dict(), save_path)
 
-        model.load_state_dict(torch.load('result/HLA_II/models/best_model'+'_CV'+str(cv)+'.pt'))
+        model.load_state_dict(torch.load('result/HLA_II/best_model'+'_CV'+str(cv)+'.pt'))
         model.eval()
         test_preds = []
         test_labels = []
@@ -220,9 +220,9 @@ if args.mode == 'HLA_I':
         loss_fn = nn.CrossEntropyLoss(reduction='sum')
         model = hla_i_mult_cnn(args).to(device)
         optimizer = torch.optim.AdamW(params=model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-        save_path = 'result/HLA_I/models/best_model' + '_CV' + str(cv) + '.pt'  # 当前目录下
-        if not os.path.exists('result/HLA_I/models'):
-            os.makedirs('result/HLA_I/models')
+        save_path = 'result/HLA_I/best_model' + '_CV' + str(cv) + '.pt'  # 当前目录下
+        if not os.path.exists('result/HLA_I'):
+            os.makedirs('result/HLA_I')
         best_auroc = 0.5
         best_auc_epoch = 1
         best_R = 0.5
@@ -294,7 +294,7 @@ if args.mode == 'HLA_I':
         #
         #     torch.save(model.state_dict(), save_path)
 
-        model.load_state_dict(torch.load('result/HLA_I/models/best_model'+'_CV'+str(cv)+'.pt'))
+        model.load_state_dict(torch.load('result/HLA_I/best_model'+'_CV'+str(cv)+'.pt'))
         model.eval()
         test_preds = []
         test_labels = []
