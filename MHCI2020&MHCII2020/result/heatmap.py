@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-#MHCAttn
 import numpy as np
 import pandas as pd
 
@@ -42,16 +41,16 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_a
 #
 # fw.close()
 
-# plt.figure(figsize=(35,2))
-plt.figure(figsize=(20,3))
+# plt.figure(figsize=(35,2))#HLA_II
+plt.figure(figsize=(20,3))#HLA_I
 # Create a dataset
 HLAII = ['AUC' ,'PCC' ,'PPV' ,'Sensitivity','F1-score', ]
 HLAI = ['AUC' ,'PCC'  ,'PPV'  ,'Sensitivity','F1-score' , ]
 f = pd.read_csv('HLAII_group.csv')
-data = f[HLAII].values
+data = f[HLAI].values
 allele = list(f['allele'].values)
 
-p1 = sns.heatmap(data.T,cmap='Paired',vmax=1,vmin = 0.,xticklabels = allele,yticklabels = HLAII)
+p1 = sns.heatmap(data.T,cmap='Paired',vmax=1,vmin = 0.,xticklabels = allele,yticklabels = HLAI)
 p1.set_xticklabels(p1.get_xticklabels(), rotation=30,fontsize =10)
-plt.savefig('HLAII_group.eps',bbox_inches = 'tight')
+plt.savefig('HLAI_group.eps',bbox_inches = 'tight')
 plt.show()
