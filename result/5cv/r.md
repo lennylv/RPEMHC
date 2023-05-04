@@ -1,1 +1,0 @@
-Trained models should be in this file.
