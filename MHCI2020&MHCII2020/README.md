@@ -1,0 +1,14 @@
+##Data preprocess
+```bash
+python preprocess.py  ##residue-residue pair encoding
+```
+
+## Experiments
+```bash
+python train.py --mode cv   ##5-flod cross-validation on IEDB2016 
+python train.py --mode lomo    ##Leave one molecule out on IEDB2016
+python train.py --mode binary_test   ##independent test on Binary_test
+python train.py --mode iC50_test   ##independent test on IC50_test
+python train.py --mode T_cell_test     ##independent test on T-cell epitope benchmark
+python train.py --mode ablation   ##ablation experiment
+```
