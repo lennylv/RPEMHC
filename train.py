@@ -3,7 +3,7 @@ import sys
 import datetime
 from math import log
 import pandas as pd
-from dataloader import CSVDataset, collate_fn, myDataset, abla_collate_fn, abla_Dataset, tcellDataset
+from dataloader import *
 import os
 import numpy as np
 import paddle
@@ -237,9 +237,9 @@ if args.mode =='lomo':
                         #     train_auroc,train_R,train_loss=train(model,train_loader, optimizer, epoch)
                         #     val_auroc, val_R, val_loss = evaluate(model,epoch,val_loader)
                         #     print('epoch:',epoch+1,'|train_loss:','{:.3f}'.format(train_loss),'|train auroc:','{:.3f}'.format(train_auroc),'|train R:','{:.3f}'.format(train_R),'|val_loss:','{:.3f}'.format(val_loss),'|val auroc:','{:.3f}'.format(val_auroc),'|val R:','{:.3f}'.format(val_R))
-                        #     if val_R > best_R:
+
                         #         paddle.save(model.state_dict(), save_path)
-                        #         best_R = val_R
+
                         model.set_state_dict(paddle.load(save_path))
                         label,preds = predict(model,test_loader)
                         true += list(label)
@@ -297,7 +297,6 @@ if args.mode =='ic50_test':
     group_auc.append(np.mean(group_auc, axis=0))
     group_R.append(np.mean(group_R, axis=0))
     print('group_auc:', np.mean(group_auc, axis=0), 'group_pcc:', np.mean(group_R, axis=0))
-
 
 if args.mode == 'binary_test':
     print('test')
@@ -414,35 +413,32 @@ if args.mode == 'ablation':
             os.makedirs('result/ablation/pred')
         out.to_csv('result/ablation/pred/model_id_' + str(i) +'_5cv_pred.csv')
 
-if args.mode == 'T_cell_test':
-    lines = open('dataset/T_cell.fa.txt').readlines()
-    fw = open('result/T_cell/t_cell_test.txt', 'w')
-    for i, line in enumerate(lines):
-        if i >= 0:
-            if line.startswith('>'):
-                line = line.strip().split('=')
-                s = line[2].replace('HLA-', '').replace('/', '-').replace('DRA01:01-', '').replace(':', '')
-                if s[:3] != 'DRB' and s[:3] != 'H2-': s = 'HLA-' + s.replace('_', '')
-                if s[:3] == 'DRB': s = s[:4] + '_' + s[4:]
-                if s[:3] == 'H2-': s = 'H-2-' + s[3:]
-                # print(s)
-                print('t_cell', i, s)
-                seq = lines[i + 1]
-                hit = line[1]
+if args.mode == 'epitope':
+    f = pd.read_csv('dataset/epitope_benchmark.csv')
+    proteins = f['protein'].values
+    epitopes = f['epitope'].values
+    alleles = f['allele'].values
+    fw = open('result/T_cell/epitope_test.txt', 'w')
+    for i, protein in enumerate(proteins):
+            s = alleles[i]
+            # print(s)
+            print('t_cell', i, s)
+            seq = protein
+            if 'Z' not in seq and 'X' not in seq:
+                hit = epitopes[i]
                 seq_list = np.asarray([seq[j:j + len(hit)] for j in range(len(seq) - len(hit) + 1)])
                 logic = np.zeros(len(seq_list), dtype='int32')
                 logic[seq_list == hit] = 1
                 mhc_name = np.asarray([s] * len(seq_list))
                 mhc = [mhc_name_dict[j] for j in mhc_name]
                 test_data = np.asarray(list(zip(mhc, seq_list, logic)), dtype=object)
-                test_data = tcellDataset(test_data)
+                # print(len(hit))
+                test_data = tcellDataset(test_data,cut_pep=len(hit))
                 test_loader = paddle.io.DataLoader(test_data, batch_size=256, shuffle=False, collate_fn=collate_fn)
+                args.cut_pep = len(hit)
                 pred_list = []
                 # print(i)
                 for m in range(args.model_id_start, args.model_id_start + 20):
-                    best_auc = 0.
-                    pred = []
-                    best_fpr = 1.
                     # for cv in range(5):
                     model = mult_cnn(args)
                     save_path = 'result/5cv/models/best_model_' + 'model_id_' + str(m) + '_CV' + str(0) + '.pt'
@@ -459,7 +455,7 @@ if args.mode == 'T_cell_test':
     fw.close()
 
     ######T_cell_group_test
-    # lines = open('result/T_cell/t_cell_test.txt').readlines()
+    # lines = open('result/T_cell/epitope_test.txt').readlines()
     # mhc = []
     # frank = []
     # auc = []
@@ -474,7 +470,7 @@ if args.mode == 'T_cell_test':
     # avg1 = []
     # avg2 = []
     #
-    # fw = open('result/T_cell/t_cell_group_test.txt', 'w')
+    # fw = open('result/T_cell/epitope_group_test.txt', 'w')
     # for m in sorted(set(mhc)):
     #     avg_frank = np.around(np.mean(frank[mhc == m]), decimals=3)
     #     avg1.append(avg_frank)
@@ -482,7 +478,325 @@ if args.mode == 'T_cell_test':
     #     avg2.append(avg_auc)
     #     fw.write(m + ' ' + str(avg_frank) + ' ' + str(avg_auc) + '\n')
     # print(len(avg1))
+    # print(np.median(np.asarray(avg1)))
     # fw.write('avg' + ' ' + str(np.around(np.mean(avg1), decimals=3)) + ' ' + str(
     #     np.around(np.mean(avg2), decimals=3)) + '\n')
     # fw.close()
 
+if args.mode == 'Net3.0':
+
+    data = pd.read_csv('NetMHCpan3.0/NetMHCpan_data.csv')
+    mhc_name = data['allele'].values
+    mhc = data['mhc'].values
+    logic = data['logic'].values
+    pep = data['pep'].values
+    all_data = np.asarray(list(zip(mhc, pep, logic)), dtype=object)
+    lines = open('NetMHCpan3.0/NetMHCpan_cv_id.txt').readlines()
+    cv_id = np.asarray([int(line) for line in lines])
+    assert len(all_data) == len(cv_id)
+    pred_list = []
+    for i in range(args.model_id_start, args.model_id_start + args.num_models):
+        true = np.empty(len(all_data), dtype=np.float32)
+        pred = np.empty(len(all_data), dtype=np.float32)
+        for cv in range(5):
+            print('model_id', str(i), 'flod', cv + 1)
+            train_data_list, test_data_list = all_data[cv_id != cv], all_data[cv_id == cv]
+            train_data = NetMHCDataset(train_data_list, cut_pep=args.cut_pep)
+            test_data = NetMHCDataset(test_data_list, cut_pep=args.cut_pep)
+
+            train_loader = paddle.io.DataLoader(train_data, batch_size=args.batch_size, shuffle=True,
+                                                collate_fn=collate_fn)
+            test_loader = paddle.io.DataLoader(test_data, batch_size=args.batch_size, shuffle=False,
+                                               collate_fn=collate_fn)
+
+            loss_fn = nn.MSELoss(reduction='sum')
+            model = mult_cnn(args)
+            optimizer = paddle.optimizer.AdamW(parameters=model.parameters(), learning_rate=args.lr,
+                                               weight_decay=args.weight_decay)
+            save_path = 'NetMHCpan3.0/results/models/best_model_model_id_' + str(i) + '_CV' + str(cv) + '.pt'  # 当前目录下
+
+            best_auroc = 0.5
+            best_auc_epoch = 1
+            best_R = 0.5
+            # for epoch in range(args.epoch):
+            #     train_auroc,train_R,train_loss=train(model,train_loader, optimizer, epoch)
+            #     val_auroc, val_R, val_loss = evaluate(model,epoch,test_loader)
+            #     print('epoch:',epoch+1,'|train_loss:','{:.3f}'.format(train_loss),'|train auroc:','{:.3f}'.format(train_auroc),'|train R:','{:.3f}'.format(train_R),
+            #     '|val auroc:','{:.3f}'.format(val_auroc),'|val R:','{:.3f}'.format(val_R),
+            #     )
+            #     paddle.save(model.state_dict(), save_path)
+            model.set_state_dict(
+                paddle.load('NetMHCpan3.0/results/models/best_model_' + 'model_id_' + str(i) + '_CV' + str(cv) + '.pt'))
+            label, preds = predict(model, test_loader)
+            true[cv_id == cv] = label
+            pred[cv_id == cv] = preds
+            pred_list.append(pred)
+
+        out = pd.DataFrame({'allele': list(mhc_name), 'true': list(true), 'pred': list(pred)})
+        if not os.path.exists('NetMHCpan3.0/results/preds'):
+            os.makedirs('NetMHCpan3.0/results/preds')
+        out.to_csv('NetMHCpan3.0/results/preds/model_id_' + str(i) + '_5cv_pred.csv')
+
+    #
+    # scores = np.mean(pred_list, axis=0)
+    # o = pd.DataFrame({'allele': list(mhc_name), 'pep': list(pep), 'true': list(true), 'pred': list(scores)})
+    # o.to_csv('NetMHCpan3.0/results/pred.csv')
+
+if args.mode == 'CD8':
+    lines_ = open('NetMHCpan3.0/MHC_pseudo.dat').readlines()
+    alleles_ = [line.strip().split()[0] for line in lines_]
+    pse = [line.strip().split()[1] for line in lines_]
+    mhc_name_dict = {}
+    for i,j in enumerate(alleles_):
+        mhc_name_dict[j] = pse[i]
+    lines = open('dataset/CD8_epitopes.fsa').readlines()
+    fw = open('result/T_cell/CD8_test.txt', 'a')
+    for i, line in enumerate(lines):
+        if i >=2802:
+            if line.startswith('>'):
+                line = line[1:].strip().split()
+                s = line[1]
+                # print(s)
+                seq = lines[i + 1].strip()
+                print('t_cell', i, s)
+                if 'X' not in seq:
+                    hit = line[0]
+                    # print(hit)
+                    seq_list = np.asarray([seq[j:j + len(hit)] for j in range(len(seq) - len(hit) + 1)])
+                    logic = np.zeros(len(seq_list), dtype='int32')
+                    logic[seq_list == hit] = 1
+                    # print(logic.sum())
+                    mhc_name = np.asarray([s] * len(seq_list))
+                    mhc = [mhc_name_dict[j] for j in mhc_name]
+                    test_data = np.asarray(list(zip(mhc, seq_list, logic)), dtype=object)
+                    c = len(hit)
+                    if c<9:c=9
+                    test_data = tcellDataset(test_data,cut_pep=c)
+                    test_loader = paddle.io.DataLoader(test_data, batch_size=256, shuffle=False, collate_fn=collate_fn)
+                    args.cut_pep = c
+                    pred_list = []
+                    # print(i)
+                    for m in range(args.model_id_start, args.model_id_start + 20):
+                        for cv in range(5):
+                            best_auc = 0.
+                            pred = []
+                            best_fpr = 1.
+                            # for cv in range(5):
+                            model = mult_cnn(args)
+                            save_path = 'NetMHCpan3.0/results/models/best_model_' + 'model_id_' + str(m) + '_CV' + str(cv) + '.pt'
+                            model.set_state_dict(paddle.load(save_path))
+                            label, preds = predict(model, test_loader)
+                            pred_list.append(preds)
+                        # print(len(pred_list))
+                    scores = np.mean(np.asarray(pred_list), axis=0)
+                    posi_score = scores[logic == 1]
+                    # print(posi_score)
+                    frank = np.sum(scores > posi_score) / len(seq_list)
+                    auc = roc_auc_score(logic, scores)
+                    print(s, frank, auc)
+                    fw.write(s + ' ' + str(frank) + ' ' + str(auc) + '\n')
+    fw.close()
+
+    ######T_cell_group_test
+    # lines = open('result/T_cell/CD8_test.txt').readlines()
+    # mhc = []
+    # frank = []
+    # auc = []
+    # for line in lines:
+    #     line = line.strip().split()
+    #     mhc.append(line[0])
+    #     frank.append(line[1])
+    #     auc.append(line[2])
+    # mhc = np.asarray(mhc)
+    # frank = np.asarray(frank).astype('float32')
+    # auc = np.asarray(auc).astype('float32')
+    # avg1 = []
+    # avg2 = []
+    #
+    # fw = open('result/T_cell/CD8_group_test.txt', 'w')
+    # for m in sorted(set(mhc)):
+    #     avg_frank = np.around(np.mean(frank[mhc == m]), decimals=3)
+    #     avg1.append(avg_frank)
+    #     avg_auc = np.around(np.mean(auc[mhc == m]), decimals=3)
+    #     avg2.append(avg_auc)
+    #     fw.write(m + ' ' + str(avg_frank) + ' ' + str(avg_auc) + '\n')
+    # print(len(avg1))
+    # print(np.median(np.asarray(avg1)))
+    # fw.write('avg' + ' ' + str(np.around(np.mean(avg1), decimals=3)) + ' ' + str(
+    #     np.around(np.mean(avg2), decimals=3)) + '\n')
+    # fw.close()
+
+if args.mode == 'CD4':
+    lines = open('dataset/CD4_epitopes.fsa').readlines()
+    fw = open('result/T_cell/CD4_test.txt', 'w')
+    for i, line in enumerate(lines):
+        if line.startswith('>'):
+            line = line[1:].strip().split()
+            s = line[1]
+            # print(s)
+            print('t_cell', i, s)
+            seq = lines[i + 1].strip()
+            hit = line[0]
+            seq_list = np.asarray([seq[j:j + len(hit)] for j in range(len(seq) - len(hit) + 1)])
+            logic = np.zeros(len(seq_list), dtype='int32')
+            logic[seq_list == hit] = 1
+            mhc_name = np.asarray([s] * len(seq_list))
+            mhc = [mhc_name_dict[j] for j in mhc_name]
+            test_data = np.asarray(list(zip(mhc, seq_list, logic)), dtype=object)
+            test_data = tcellDataset(test_data, cut_pep=len(hit))
+            test_loader = paddle.io.DataLoader(test_data, batch_size=256, shuffle=False, collate_fn=collate_fn)
+            args.cut_pep = len(hit)
+            pred_list = []
+            # print(i)
+            for m in range(args.model_id_start, args.model_id_start + 20):
+                best_auc = 0.
+                pred = []
+                best_fpr = 1.
+                model = mult_cnn(args)
+                save_path = 'result/5cv/models/best_model_' + 'model_id_' + str(m) + '_CV' + str(0) + '.pt'
+                model.set_state_dict(paddle.load(save_path))
+                label, preds = predict(model, test_loader)
+                pred_list.append(preds)
+                # print(len(pred_list))
+            scores = np.mean(np.asarray(pred_list), axis=0)
+            posi_score = scores[logic == 1]
+            frank = np.sum(scores > posi_score) / len(seq_list)
+            auc = roc_auc_score(logic, scores)
+            print(s, frank, auc)
+            fw.write(s + ' ' + str(frank) + ' ' + str(auc) + '\n')
+    fw.close()
+
+    ######T_cell_group_test
+    # lines = open('result/T_cell/CD4_test.txt').readlines()
+    # mhc = []
+    # frank = []
+    # auc = []
+    # for line in lines:
+    #     line = line.strip().split()
+    #     mhc.append(line[0])
+    #     frank.append(line[1])
+    #     auc.append(line[2])
+    # mhc = np.asarray(mhc)
+    # frank = np.asarray(frank).astype('float32')
+    # auc = np.asarray(auc).astype('float32')
+    # avg1 = []
+    # avg2 = []
+
+    # # fw = open('result/T_cell/CD4_group_test.txt', 'w')
+    # for m in sorted(set(mhc)):
+    #     avg_frank = np.around(np.mean(frank[mhc == m]), decimals=3)
+    #     avg1.append(avg_frank)
+    #     avg_auc = np.around(np.mean(auc[mhc == m]), decimals=3)
+    #     avg2.append(avg_auc)
+    #     # fw.write(m + ' ' + str(avg_frank) + ' ' + str(avg_auc) + '\n')
+    # print(len(avg1))
+    # print(np.median(np.asarray(avg1)))
+    # # fw.write('avg' + ' ' + str(np.around(np.mean(avg1), decimals=3)) + ' ' + str(
+    # #     np.around(np.mean(avg2), decimals=3)) + '\n')
+    # # fw.close()
+
+if args.mode == 'binding_core':
+    lines = open('dataset/binding.txt').readlines()
+    mhc_name = [line.strip().split()[1] for line in lines]
+    core = [line.strip().split()[4] for line in lines]
+    mhc = [line.strip().split()[2] for line in lines]
+    pep = [line.strip().split()[3] for line in lines]
+    corelist = []
+    for l in range(len(lines)):
+        seq = pep[l]
+        seq_list = [seq[j:j+9] for j in range(len(seq)-8) ]
+        mhc_name_list = np.asarray([mhc_name[l]] * len(seq_list))
+        mhc_list  = [mhc_name_dict[j] for j in mhc_name_list]
+        binding_data = np.asarray(list(zip(mhc_name_list,seq_list, mhc_list)), dtype=object)
+        # args.cut_pep = len(seq)
+        binding_data = bind_Dataset(binding_data,cut_pep=args.cut_pep)
+        binding_loader = paddle.io.DataLoader(binding_data, batch_size=256, shuffle=False, collate_fn=collate_fn)
+
+        pred_list = []
+
+        for i in range(1,21):
+            model = mult_cnn(args)
+            # print('model_id', i)
+            best_auc = 0.
+            pred = []
+            for cv in range(5):
+                save_path = 'result/5cv/models/best_model_' + 'model_id_' + str(i) + '_CV' + str(cv) + '.pt'
+                model.set_state_dict(paddle.load(save_path))
+                label, preds = predict(model, binding_loader)
+                binding_idx = preds.argmax(axis=0)
+                pred_list.append(seq[binding_idx:binding_idx+9])
+    #
+        corelist.append(max(pred_list, key=pred_list.count))
+    pred_true = [c==corelist[i] for i,c in enumerate(core)]
+    print(np.asarray(pred_true).sum())
+
+if args.mode == 'seqlogo':
+    mhc_name = ['DRB1_0301', 'DRB1_1301', 'DRB1_1501','DRB1_0401', 'DRB1_0701',
+                'DRB1_1101','DRB1_0101','DRB1_0802','DRB1_0901','DRB1_1302',
+                'DRB1_1501','DRB3_0101','DRB5_0101']
+    mhc = [mhc_name_dict[i] for i in mhc_name]
+    for mhc_i in mhc_name:
+        lines = open('dataset/seq2logo.txt').readlines()
+        pep = np.asarray([line.strip() for line in lines])
+        mhc = [mhc_name_dict[mhc_i]]*len(pep)
+        mhc_name_lst = [mhc_i]*len(pep)
+        test_data = np.asarray(list(zip(mhc_name_lst, pep, mhc)), dtype=object)
+
+        test_data = bind_Dataset(test_data)
+        test_loader = paddle.io.DataLoader(test_data, batch_size=512, shuffle=False, collate_fn=collate_fn)
+
+        pred_list = []
+        for i in range(1, 21):
+            model = mult_cnn(args)
+            print('model_id', i)
+            best_auc = 0.
+            pred = []
+            # for cv in range(5):
+            save_path = 'result/5cv/models/best_model_' + 'model_id_' + str(i) + '_CV' + str(0) + '.pt'
+            model.set_state_dict(paddle.load(save_path))
+            label, preds = predict(model, test_loader)
+            pred_list.append(preds)
+
+        # print(len(pred_list))
+        scores = np.mean(np.asarray(pred_list), axis=0)
+        print(scores.shape)
+        fw = open('result/seq2logo/'+mhc_i+'_seq2logo.txt','w')
+        k = int(len(scores)*0.01)
+        sort_index = scores.argsort()[::-1][:k]
+        tologo = pep[sort_index]
+        [fw.write(o+'\n') for o in tologo]
+        fw.close()
+
+        # lines = open('result/seq2logo/'+mhc_i+'_seq2logo.txt').readlines()
+        # pep = [line.strip() for line in lines]
+        # fw = open('result/seq2logo/'+mhc_i+'_seq2logo_core.txt','w')
+        # for l in range(len(lines)):
+        #     seq = pep[l]
+        #     seq_list = [seq[j:j+9] for j in range(len(seq)-8) ]
+        #     mhc_name_list = [mhc_i] * len(seq_list)
+        #     mhc_list  = [mhc_name_dict[mhc_i]] * len(seq_list)
+        #     binding_data = np.asarray(list(zip(mhc_name_list,seq_list, mhc_list)), dtype=object)
+        #     args.cut_pep = 9
+        #     binding_data = bind_Dataset(binding_data,cut_pep=args.cut_pep)
+        #     binding_loader = paddle.io.DataLoader(binding_data, batch_size=256, shuffle=False, collate_fn=collate_fn)
+        #
+        #     pred_list = []
+        #     for i in range(1,21):
+        #         model = mult_cnn(args)
+        #         # print('model_id', i)
+        #         best_auc = 0.
+        #         pred = []
+        #         for cv in range(5):
+        #             save_path = 'result/5cv/models/best_model_' + 'model_id_' + str(i) + '_CV' + str(cv) + '.pt'
+        #             model.set_state_dict(paddle.load(save_path))
+        #             label, preds = predict(model, binding_loader)
+        #             # print(preds.shape)
+        #             # tp3 = top3(preds)
+        #             # binding_idx = [seq[int(i):int(i) + 9] for i in tp3]
+        #             binding_idx = preds.argmax(axis=0)
+        #             # print(binding_idx)
+        #             pred_list.append(seq[binding_idx:binding_idx+9])
+        # #
+        #     corepred = max(pred_list, key=pred_list.count)
+        #     fw.write(corepred+'\n')
+        # fw.close()

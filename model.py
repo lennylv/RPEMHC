@@ -64,6 +64,7 @@ class mult_cnn(nn.Layer):
 
         self.fc = nn.Linear(256,1)
         self.sigmoid = nn.Sigmoid()
+        self.cut_pep = args.cut_pep
  
 
     def forward(self,mult_id,pep_mask_len,targets):
@@ -71,7 +72,7 @@ class mult_cnn(nn.Layer):
         mult_id = mult_id.reshape([mult_id.shape[0],-1])
         mult_id = self.mult_emb(mult_id)
         
-        mult_id = mult_id.reshape([mult_id.shape[0],34,20,-1]).transpose([0,3,1,2])
+        mult_id = mult_id.reshape([mult_id.shape[0],34,self.cut_pep,-1]).transpose([0,3,1,2])
         mult_id =self.mult_id_step1(mult_id).squeeze(-2)
        
         mult_id = paddle.concat([self.mult_id_step2_1(mult_id),self.mult_id_step2_2(mult_id),self.mult_id_step2_3(mult_id)],axis=1)

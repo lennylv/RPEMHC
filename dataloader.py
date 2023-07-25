@@ -189,3 +189,69 @@ class tcellDataset(Dataset):
             'pep_mask':pep_mask,
             'logic':logic
         }
+
+
+class NetMHCDataset(Dataset):
+    def __init__(self, data_list, cut_pep=20):
+        self.data_list = data_list
+        self.cut_pep = cut_pep
+
+    def __len__(self) -> int:
+        return len(self.data_list)
+
+    def __getitem__(self, index: int):
+        data = self.data_list[index]
+        compound_id = encode(data[0], data[1][:self.cut_pep], cut_pep=self.cut_pep)
+        # compound = dis_encode(data[0],data[1][:20])
+        logic = data[2]
+
+        pep = data[1][:self.cut_pep]
+        pep_len = len(pep)
+        pep_mask = np.zeros(self.cut_pep, dtype='int32')
+        pep_mask[:pep_len] = 1
+
+        return {
+            'mult_id': compound_id,
+            'pep_mask': pep_mask,
+            'logic': logic
+        }
+
+class bind_Dataset(Dataset):
+    def __init__(self,all_data,cut_pep=20):
+
+        self.data_list = all_data
+        self.cut_pep = cut_pep
+
+    def __len__(self) -> int:
+        return len(self.data_list)
+
+    def __getitem__(self, index: int):
+        mhc = self.data_list[index][2]
+        pep = self.data_list[index][1]
+        compound_id = encode(mhc,pep[:self.cut_pep],self.cut_pep)
+        logic = 1
+        pep = pep[:self.cut_pep]
+        pep_len = len(pep)
+        pep_mask = np.zeros(self.cut_pep,dtype = 'int32')
+        pep_mask[:pep_len] = 1
+        return {
+            'mult_id':compound_id,
+            'pep_mask':pep_mask,
+            'logic':logic
+        }
+
+
+
+def bind_collate_fn(batch) -> Dict[str, paddle.Tensor]:
+    elem = batch[0]
+    batch = {key: [d[key] for d in batch] for key in elem}
+    pep_mask = paddle.to_tensor(np.stack(batch['pep_mask']), dtype=paddle.int32)
+    mult_id = paddle.to_tensor(np.stack(batch['mult_id']), dtype=paddle.int32)
+
+    logic = paddle.to_tensor(batch['logic'], dtype=paddle.int32)
+
+    return {
+        'mult_id':mult_id,
+        'pep_mask_len':pep_mask,
+        'targets':logic,
+    }

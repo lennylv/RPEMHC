@@ -16,9 +16,14 @@ python train.py --mode cv   ##5-flod cross-validation on IEDB2016
 python train.py --mode lomo    ##Leave one molecule out on IEDB2016
 python train.py --mode binary_test   ##independent test on Binary_test
 python train.py --mode iC50_test   ##independent test on IC50_test
-python train.py --mode T_cell_test     ##independent test on T-cell epitope benchmark
+python train.py --mode epitope     ##independent test on T-cell epitope benchmark
 python train.py --mode ablation   ##ablation experiment
+python train.py --mode binding_core   ##binding core prediction
+python train.py --mode seqlogo   ##generate data to draw seq2logo
+python train.py --mode CD4   ##evaluation compared with NetMHCIIpan-4.0
+python train.py --mode CD8   ##evaluation compared with NetMHCpan-4.1
 ```
+
 ## trained model
 Trained models are provided in https://pan.quark.cn/s/2985aa5a6138
 
