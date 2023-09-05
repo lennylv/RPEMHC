@@ -208,7 +208,10 @@ class NetMHCDataset(Dataset):
         pep = data[1][:self.cut_pep]
         pep_len = len(pep)
         pep_mask = np.zeros(self.cut_pep, dtype='int32')
-        pep_mask[:pep_len] = 1
+        if pep_len < 9:
+            pep_mask[:9] = 1
+        else:
+            pep_mask[:pep_len] = 1
 
         return {
             'mult_id': compound_id,
